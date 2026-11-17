@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { Filters, Vacancy } from '../types'
 import { fetchVacanciesPage, PAGE_SIZE } from '../api'
 import { analyze, isItVacancy, type Analysis } from '../analyze'
+import { toCsv, downloadCsv } from '../csv'
 import { RegionChart, SalaryChart, SkillsChart, ExperienceChart, EducationChart } from './Charts'
 import VacancyTable from './VacancyTable'
 
@@ -15,6 +16,39 @@ export default function Dashboard({ filters }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [vacancies, setVacancies] = useState<Vacancy[]>([])
   const [progress, setProgress] = useState('')
+
+  /** CSV со всеми загруженными вакансиями */
+  const exportVacanciesCsv = () => {
+    const csv = toCsv(
+      ['Название', 'Регион', 'Зарплата от', 'Зарплата до', 'Работодатель', 'Сфера', 'Образование', 'Опыт (лет)', 'Ссылка'],
+      vacancies.map((v) => [
+        v.name,
+        v.regionName,
+        v.salaryMin,
+        v.salaryMax,
+        v.company,
+        v.specialisation,
+        v.education,
+        v.experienceYears,
+        v.url,
+      ]),
+    )
+    downloadCsv(`vacancies-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  }
+
+  /** CSV со сводкой по ИТ-компетенциям */
+  const exportSkillsCsv = () => {
+    if (!analysis) return
+    const csv = toCsv(
+      ['Компетенция', 'Вакансий с навыком', 'Доля от загруженных, %'],
+      analysis.topSkills.map((s) => [
+        s.name,
+        s.count,
+        analysis.total ? ((s.count / analysis.total) * 100).toFixed(1) : 0,
+      ]),
+    )
+    downloadCsv(`it-skills-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -53,9 +87,21 @@ export default function Dashboard({ filters }: Props) {
 
   return (
     <div>
-      <button className="btn btn-primary" onClick={load} disabled={loading}>
-        {loading ? 'Загрузка…' : 'Загрузить и проанализировать'}
-      </button>
+      <div className="btn-row">
+        <button className="btn btn-primary" onClick={load} disabled={loading}>
+          {loading ? 'Загрузка…' : 'Загрузить и проанализировать'}
+        </button>
+        {analysis && (
+          <>
+            <button className="btn" onClick={exportVacanciesCsv}>
+              ⬇ CSV: вакансии ({vacancies.length})
+            </button>
+            <button className="btn" onClick={exportSkillsCsv}>
+              ⬇ CSV: ИТ-компетенции
+            </button>
+          </>
+        )}
+      </div>
       {progress && <span className="muted"> {progress}</span>}
       {error && <div className="error">Ошибка: {error}</div>}
 
